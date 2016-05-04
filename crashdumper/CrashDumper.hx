@@ -52,7 +52,8 @@ class CrashDumper
 	public var closeOnCrash:Bool;
 	public var postCrashMethod:CrashDumper->Void;
 	public var customDataMethod:CrashDumper->Void;
-	
+	public var customErrorMessage:Void->String;
+
 	public var session:SessionData;
 	public var system:SystemData;
 	
@@ -234,7 +235,7 @@ class CrashDumper
 			trace("CRASH session.id = " + session.id);
 			trace("MESSAGE = " + errorMessage);
 		}
-		
+
 		#if sys
 			if (writeToFile)
 			{
@@ -371,6 +372,9 @@ class CrashDumper
 		var str:String = "";
 		str = systemStr();
 		str = endlConcat(str, sessionStr());		//we separate the output into three blocks so it's easy to override them with your own customized output
+		if (customErrorMessage != null){
+			str = endlConcat(str, customErrorMessage());
+		}
 		#if flash
 			str = endlConcat(str, crashStr(theError));
 		#else

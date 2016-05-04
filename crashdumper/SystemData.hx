@@ -23,7 +23,9 @@ class SystemData
 	public var cpuName:String;			//the name of your cpu, -- "Intel(R) Core(TM)2 Duo CPU     E7400  @ 2.80GHz"
 	public var gpuName:String;			//the name of your gpu, -- "ATI Radeon HD 4800 Series"
 	public var gpuDriverVersion:String;	//version number of gpu driver, -- "8.970.100.1100"
-	
+	public var androidDeviceID:String; //
+	public var androidModel:String;	//
+
 	#if flash
 	public var playerVersion:String;	//version number of the flash player, ie "WIN 12,0,0,77"
 	public var playerType:String;
@@ -70,6 +72,12 @@ class SystemData
 				runProcess("crashdumper/memory.sh", [], processMemory);
 				runProcess("crashdumper/cpu.sh", [], processCPU);
 				runProcess("crashdumper/gpu.sh", [], processGPU);
+			#elseif android
+				runProcess("getprop", ["ro.build.version.release"], processOS);
+				runProcess("getprop", ["ro.product.cpu.abi2"], processCPU);
+				runProcess("getprop", ["ro.serialno"], deviceID);
+				runProcess("getprop", ["ro.product.model"], modelID);
+				runProcess("cat", ["/proc/meminfo"], processMemory);
 			#elseif mac
 				// must set file to executable first
 				runProcess("chmod", [ "a+x","crashdumper/os.sh"], dummy);
@@ -91,6 +99,8 @@ class SystemData
 	
 	private function dummy(line:String):Void
 	{
+		trace('-- dummy:');
+		trace(line);
 	// this is because runprocess() must accept function
 	}
 	
@@ -102,6 +112,15 @@ class SystemData
 		"   OS: " + osName + endl() + 
 		"FLASH: " + playerType + " v. " + playerVersion + endl() + 
 		"  CPU: " + cpuName + endl() +
+		"}";
+		#elseif android
+		return "SystemData" + endl() +
+		"{" + endl() +
+		"  OS : Android " + osName + endl() +
+		"  RAM FREE: " + totalMemory + " KB " + endl() +
+		"  CPU: " + cpuName + endl() +
+		"  DeviceID: " + androidDeviceID + endl() +
+		"  Model: " + androidModel + endl() +
 		"}";
 		#else
 		
@@ -269,6 +288,8 @@ class SystemData
 			{
 				osName = temp[0] + " (" + temp[1] + ")";
 			}
+		#elseif android
+			osName = stripEndLines(line);
 		#elseif mac
 			line = stripEndLines(line);
 			osName = line;
@@ -312,6 +333,10 @@ class SystemData
 			}
 		#elseif linux
 			totalMemory = Std.parseInt(line);
+		#elseif android
+			var r = ~/MemFree:\s+?(\d+\s?.*)/g;
+			r.match(line);
+			totalMemory = Std.parseInt(r.matched(1));
 		#elseif mac
 			totalMemory = Std.parseInt(line) * 1024 * 1024;
 		#end
@@ -331,9 +356,21 @@ class SystemData
 			}
 		#elseif linux
 			cpuName = stripWord(line,"\n");
+		#elseif android
+			cpuName = stripEndLines(line);
 		#elseif mac
 			cpuName = stripEndLines(line);
 		#end
+	}
+
+	private function deviceID(line:String):Void
+	{
+		androidDeviceID = stripEndLines(line);
+	}
+
+	private function modelID(line:String):Void
+	{
+		androidModel = stripEndLines(line);
 	}
 	
 	private function processGPU(line:String):Void
