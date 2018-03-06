@@ -2,7 +2,7 @@ package crashdumper.hooks.openfl;
 import crashdumper.hooks.IHookPlatform;
 import haxe.io.Bytes;
 
-#if openfl
+#if openfl_legacy
 	import openfl.utils.SystemPath;
 #end
 
@@ -59,7 +59,11 @@ class HookOpenFL implements IHookPlatform
 				{
 					str = "/" + str;
 				}
+				#if openfl_legacy
 				str = SystemPath.applicationStorageDirectory + str;
+				#else
+				str = lime.system.System.applicationDirectory + str;
+				#end
 			#else
 				#if lime_legacy
 					switch(str)
