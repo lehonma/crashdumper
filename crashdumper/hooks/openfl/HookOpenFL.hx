@@ -2,18 +2,27 @@ package crashdumper.hooks.openfl;
 import crashdumper.hooks.IHookPlatform;
 import haxe.io.Bytes;
 
-#if openfl
-	import openfl.utils.SystemPath;
+#if !lime_legacy
+	import lime.app.Application;
+	import lime.system.System;
 #end
 
 #if (openfl >= "2.0.0")
 	import openfl.Lib;
 	import openfl.utils.ByteArray;
 	import openfl.events.UncaughtErrorEvent;
+	import crashdumper.hooks.Util;
 #else
 	import nme.Lib;
 	import nme.utils.ByteArray;
 	import flash.events.UncaughtErrorEvent;
+#end
+
+#if openfl_legacy
+	import openfl.utils.SystemPath;
+#else
+	import lime.app.Application;
+	typedef SystemPath = lime.system.System;
 #end
 
 /**
@@ -32,6 +41,8 @@ class HookOpenFL implements IHookPlatform
 	public static inline var PATH_DESKTOP:String = "%DESKTOP%";			//The User's desktop
 	public static inline var PATH_APP:String = "%APP%";					//The Application's own directory
 	
+	private var errorEvent:Dynamic->Void;
+	
 	public function new() 
 	{
 		#if openfl
@@ -40,10 +51,14 @@ class HookOpenFL implements IHookPlatform
 					fileName = Lib.file;
 					packageName = Lib.packageName;
 					version = Lib.version;
+				#elseif (lime < "7.0.0")
+					fileName = Application.current.config.file;
+					packageName = Application.current.config.packageName;
+					version = Application.current.config.version;
 				#else
-					fileName = "<not available yet in openfl-next>";
-					packageName = "<not available yet in openfl-next>";
-					version = "<not available yet in openfl-next>";
+					fileName = Application.current.meta.get("file");
+					packageName = Application.current.meta.get("packageName");
+					version = Util.getProjectVersion("project.xml");
 				#end
 			#end
 		#else
@@ -55,33 +70,25 @@ class HookOpenFL implements IHookPlatform
 	{
 		#if (windows || mac || linux || mobile)
 			#if (mobile)
-				if (str.charAt(0) != "/" && str.charAt(0) != "\\")
+				if (!Util.isFirstChar(str, "/") && !Util.isFirstChar("\\"))
 				{
-					str = "/" + str;
+					str = Util.uCombine("/" + str);
 				}
-				str = SystemPath.applicationStorageDirectory + str;
+				str = Util.uCombine([SystemPath.applicationStorageDirectory,str]);
 			#else
-				#if lime_legacy
-					switch(str)
-					{
-						case null, "": str = SystemPath.applicationStorageDirectory;
-						case PATH_APPDATA: str = SystemPath.applicationStorageDirectory;
-						case PATH_DOCUMENTS: str = SystemPath.documentsDirectory;
-						case PATH_DESKTOP: str = SystemPath.desktopDirectory;
-						case PATH_USERPROFILE: str = SystemPath.userDirectory;
-						case PATH_APP: str = SystemPath.applicationDirectory;
-					}
-				#else
-					str = "";
-				#end
+				switch(str)
+				{
+					case null, "": str = SystemPath.applicationStorageDirectory;
+					case PATH_APPDATA: str = SystemPath.applicationStorageDirectory;
+					case PATH_DOCUMENTS: str = SystemPath.documentsDirectory;
+					case PATH_DESKTOP: str = SystemPath.desktopDirectory;
+					case PATH_USERPROFILE: str = SystemPath.userDirectory;
+					case PATH_APP: str = SystemPath.applicationDirectory;
+				}
 			#end
 			if (str != "")
 			{
-				if (str.lastIndexOf("/") != str.length - 1 && str.lastIndexOf("\\") != str.length - 1)
-				{
-					//if the path is not blank, and the last character is not a slash
-					str = str + SystemData.slash();	//add a trailing slash
-				}
+				str = Util.fixTrailingSlash(str);
 			}
 		#end
 		return str;
@@ -89,7 +96,17 @@ class HookOpenFL implements IHookPlatform
 	
 	public function setErrorEvent(onErrorEvent:Dynamic->Void)
 	{
+		errorEvent = onErrorEvent;
 		Lib.current.loaderInfo.uncaughtErrorEvents.addEventListener(UncaughtErrorEvent.UNCAUGHT_ERROR, onErrorEvent);
+	}
+	
+	public function disable()
+	{
+		if (errorEvent != null)
+		{
+			trace("DISABLE ERROR EVENT");
+			Lib.current.loaderInfo.uncaughtErrorEvents.removeEventListener(UncaughtErrorEvent.UNCAUGHT_ERROR, errorEvent);
+		}
 	}
 	
 	public function getZipBytes(str):Bytes
